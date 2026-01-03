@@ -1,4 +1,0 @@
-Using neuron select type: random
-Synch representation size action: 1024
-Synch representation size out: 1024
-Loss: 0.6931 Acc: 0.4890:   0%|                                        | 31/50001 [01:32<18:11:59,  1.31s/it]
