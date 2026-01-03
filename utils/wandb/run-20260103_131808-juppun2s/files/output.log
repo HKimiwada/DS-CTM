@@ -1,0 +1,43 @@
+Using neuron select type: random
+Synch representation size action: 528
+Synch representation size out: 528
+Traceback (most recent call last):
+  File "/home/hiroki_kimiwada/.local/share/uv/python/cpython-3.9.25-linux-x86_64-gnu/lib/python3.9/runpy.py", line 197, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/home/hiroki_kimiwada/.local/share/uv/python/cpython-3.9.25-linux-x86_64-gnu/lib/python3.9/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/home/hiroki_kimiwada/sakana_ai/DS-CTM/tasks/parity/train_lagged.py", line 116, in <module>
+    train()
+  File "/home/hiroki_kimiwada/sakana_ai/DS-CTM/tasks/parity/train_lagged.py", line 71, in train
+    _ = model(pseudo_input)
+  File "/home/hiroki_kimiwada/sakana_ai/DS-CTM/.venv/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/hiroki_kimiwada/sakana_ai/DS-CTM/.venv/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/hiroki_kimiwada/sakana_ai/DS-CTM/models/lagged_ctm.py", line 71, in forward
+    sync_action = self.compute_lagged_sync(activated_state, activation_history,
+  File "/home/hiroki_kimiwada/sakana_ai/DS-CTM/models/lagged_ctm.py", line 46, in compute_lagged_sync
+    sync, a, b = update_recursive_sync(prod, alpha_dict.get(lag), beta_dict.get(lag), r)
+  File "/home/hiroki_kimiwada/sakana_ai/DS-CTM/utils/sync_metrics.py", line 29, in update_recursive_sync
+    decay_alpha = r * decay_alpha + pairwise_product #
+RuntimeError: The size of tensor a (528) must match the size of tensor b (1024) at non-singleton dimension 1
+Traceback (most recent call last):
+  File "/home/hiroki_kimiwada/.local/share/uv/python/cpython-3.9.25-linux-x86_64-gnu/lib/python3.9/runpy.py", line 197, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/home/hiroki_kimiwada/.local/share/uv/python/cpython-3.9.25-linux-x86_64-gnu/lib/python3.9/runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "/home/hiroki_kimiwada/sakana_ai/DS-CTM/tasks/parity/train_lagged.py", line 116, in <module>
+    train()
+  File "/home/hiroki_kimiwada/sakana_ai/DS-CTM/tasks/parity/train_lagged.py", line 71, in train
+    _ = model(pseudo_input)
+  File "/home/hiroki_kimiwada/sakana_ai/DS-CTM/.venv/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1773, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/hiroki_kimiwada/sakana_ai/DS-CTM/.venv/lib/python3.9/site-packages/torch/nn/modules/module.py", line 1784, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/hiroki_kimiwada/sakana_ai/DS-CTM/models/lagged_ctm.py", line 71, in forward
+    sync_action = self.compute_lagged_sync(activated_state, activation_history,
+  File "/home/hiroki_kimiwada/sakana_ai/DS-CTM/models/lagged_ctm.py", line 46, in compute_lagged_sync
+    sync, a, b = update_recursive_sync(prod, alpha_dict.get(lag), beta_dict.get(lag), r)
+  File "/home/hiroki_kimiwada/sakana_ai/DS-CTM/utils/sync_metrics.py", line 29, in update_recursive_sync
+    decay_alpha = r * decay_alpha + pairwise_product #
+RuntimeError: The size of tensor a (528) must match the size of tensor b (1024) at non-singleton dimension 1

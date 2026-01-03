@@ -1,0 +1,146 @@
+_wandb:
+    value:
+        cli_version: 0.23.1
+        e:
+            vit6jkj6izexch42ctn8rpk5ctiabwzo:
+                args:
+                    - --lags
+                    - "0"
+                    - "1"
+                    - "2"
+                    - "4"
+                    - --batch_size
+                    - "64"
+                    - --iterations
+                    - "75"
+                    - --wandb_project
+                    - lagged-ctm-research
+                cpu_count: 40
+                cpu_count_logical: 80
+                cudaVersion: "12.9"
+                disk:
+                    /:
+                        total: "471699570688"
+                        used: "401249669120"
+                email: kimiwada@stanford.edu
+                executable: /home/hiroki_kimiwada/sakana_ai/DS-CTM/.venv/bin/python3
+                git:
+                    commit: f1de5a22065cf810db740b2fd86b8d4ac22b32bb
+                    remote: https://github.com/HKimiwada/DS-CTM.git
+                gpu: Tesla V100-SXM2-16GB
+                gpu_count: 8
+                gpu_nvidia:
+                    - architecture: Volta
+                      cudaCores: 5120
+                      memoryTotal: "17179869184"
+                      name: Tesla V100-SXM2-16GB
+                      uuid: GPU-a3b22b60-3951-345f-f0a3-8febfb140235
+                    - architecture: Volta
+                      cudaCores: 5120
+                      memoryTotal: "17179869184"
+                      name: Tesla V100-SXM2-16GB
+                      uuid: GPU-3ab3b5c1-4ae5-cf7b-a598-90522ca1d3d2
+                    - architecture: Volta
+                      cudaCores: 5120
+                      memoryTotal: "17179869184"
+                      name: Tesla V100-SXM2-16GB
+                      uuid: GPU-ea30b827-88e4-eaa5-fd9b-a9ce6367ab0e
+                    - architecture: Volta
+                      cudaCores: 5120
+                      memoryTotal: "17179869184"
+                      name: Tesla V100-SXM2-16GB
+                      uuid: GPU-2fa724f9-ea17-211e-1b6f-6072dbbe045f
+                    - architecture: Volta
+                      cudaCores: 5120
+                      memoryTotal: "17179869184"
+                      name: Tesla V100-SXM2-16GB
+                      uuid: GPU-b5f49d3f-4c48-afed-9922-2d32b4e40c89
+                    - architecture: Volta
+                      cudaCores: 5120
+                      memoryTotal: "17179869184"
+                      name: Tesla V100-SXM2-16GB
+                      uuid: GPU-bab460c6-0126-44f1-4a12-cbaa80c99d08
+                    - architecture: Volta
+                      cudaCores: 5120
+                      memoryTotal: "17179869184"
+                      name: Tesla V100-SXM2-16GB
+                      uuid: GPU-7b8c0ea0-a683-83d7-347e-6d01f4170d9f
+                    - architecture: Volta
+                      cudaCores: 5120
+                      memoryTotal: "17179869184"
+                      name: Tesla V100-SXM2-16GB
+                      uuid: GPU-aef7e940-615b-f441-fad0-e14e4224f009
+                host: dgx-1
+                memory:
+                    total: "540903440384"
+                os: Linux-5.15.0-1077-nvidia-x86_64-with-glibc2.35
+                program: -m tasks.parity.train_lagged
+                python: CPython 3.9.25
+                root: /home/hiroki_kimiwada/sakana_ai/DS-CTM/utils
+                startedAt: "2026-01-03T04:18:08.378976Z"
+                writerId: vit6jkj6izexch42ctn8rpk5ctiabwzo
+        m: []
+        python_version: 3.9.25
+        t:
+            "1":
+                - 1
+                - 41
+                - 49
+                - 51
+            "2":
+                - 1
+                - 41
+                - 49
+                - 51
+            "3":
+                - 16
+            "4": 3.9.25
+            "5": 0.23.1
+            "12": 0.23.1
+            "13": linux-x86_64
+batch_size:
+    value: 64
+d_input:
+    value: 512
+d_model:
+    value: 1024
+deep_memory:
+    value: true
+gradient_clipping:
+    value: 0.1
+heads:
+    value: 8
+iterations:
+    value: 75
+lags:
+    value:
+        - 0
+        - 1
+        - 2
+        - 4
+log_every:
+    value: 100
+lr:
+    value: 0.0001
+memory_hidden_dims:
+    value: 16
+memory_length:
+    value: 25
+n_synch_action:
+    value: 32
+n_synch_out:
+    value: 32
+neuron_select_type:
+    value: random
+parity_sequence_length:
+    value: 64
+seed:
+    value: 42
+synapse_depth:
+    value: 1
+track_every:
+    value: 1000
+training_iterations:
+    value: 50001
+wandb_project:
+    value: lagged-ctm-research

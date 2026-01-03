@@ -7,18 +7,34 @@ from utils.sync_metrics import compute_lagged_pairwise_product, update_recursive
 class LaggedContinuousThoughtMachine(ContinuousThoughtMachine):
     def __init__(self, *args, lags=[0, 1, 2, 4], **kwargs):
         self.lags = sorted(lags)
+        # super().__init__ will now use our overridden calculate_synch_representation_size
         super().__init__(*args, **kwargs)
         
         # 1. Fix Parameter Collision
-        # super().__init__ calls set_synchronisation_parameters which creates
-        # single parameters. we remove them to use our ParameterDict instead.
-        if hasattr(self, 'decay_params_action'): del self.decay_params_action
-        if hasattr(self, 'decay_params_out'): del self.decay_params_out
+        # We replace the base class's single Parameter with our Lagged ParameterDict
+        if hasattr(self, 'decay_params_action'): 
+            delattr(self, 'decay_params_action')
+        if hasattr(self, 'decay_params_out'): 
+            delattr(self, 'decay_params_out')
         
         self._setup_lagged_parameters()
 
+    def calculate_synch_representation_size(self, n_synch):
+        """
+        Overridden to support asymmetric (directional) synchrony.
+        Returns n_synch * n_synch (Full matrix) instead of base CTM's n_synch*(n_synch+1)//2.
+        """
+        if self.neuron_select_type == 'random-pairing':
+            return n_synch
+        elif self.neuron_select_type in ('first-last', 'random'):
+            # Lagged synchrony is asymmetric; we need the full directional matrix
+            return n_synch * n_synch
+        else:
+            raise ValueError(f"Invalid neuron selection type: {self.neuron_select_type}")
+
     def _setup_lagged_parameters(self):
         """Register separate decay parameters for each temporal offset."""
+        # Now uses the correctly computed (larger) representation size
         if self.synch_representation_size_action > 0:
             self.decay_params_action = nn.ParameterDict({
                 f"lag_{l}": nn.Parameter(torch.zeros(self.synch_representation_size_action))
@@ -36,15 +52,15 @@ class LaggedContinuousThoughtMachine(ContinuousThoughtMachine):
         
         all_syncs = []
         for lag in self.lags:
-            # Look back in time delta steps
             hist_idx = max(0, len(history) - 1 - lag)
             delayed_z = history[hist_idx]
             
+            # prod is now correctly N*N (1024)
             prod = compute_lagged_pairwise_product(
                 current_z, delayed_z, indices_left, indices_right, self.neuron_select_type
             )
             
-            # Learnable decay for this specific lag
+            # r is now correctly N*N (1024)
             r = torch.exp(-torch.clamp(decay_dict[f"lag_{lag}"], 0, 15)).unsqueeze(0)
             sync, a, b = update_recursive_sync(
                 prod, alpha_dict.get(lag), beta_dict.get(lag), r
@@ -59,55 +75,40 @@ class LaggedContinuousThoughtMachine(ContinuousThoughtMachine):
         B = x.size(0)
         device = x.device
 
-        # Tracking storage (to match base CTM signature)
-        pre_activations_tracking = []
-        post_activations_tracking = []
-        synch_out_tracking = []
-        synch_action_tracking = []
-        attention_tracking = []
+        pre_activations_tracking, post_activations_tracking = [], [] #
+        synch_out_tracking, synch_action_tracking, attention_tracking = [], [], []
 
-        # Featurization and Initial States (matching ctm.py)
-        kv = self.compute_features(x)
-        state_trace = self.start_trace.unsqueeze(0).expand(B, -1, -1)
-        activated_state = self.start_activated_state.unsqueeze(0).expand(B, -1)
+        kv = self.compute_features(x) #
+        state_trace = self.start_trace.unsqueeze(0).expand(B, -1, -1) #
+        activated_state = self.start_activated_state.unsqueeze(0).expand(B, -1) #
         
-        activation_history = [activated_state]
-        alphas_action, betas_action = {}, {}
-        alphas_out, betas_out = {}, {}
+        activation_history = [activated_state] #
+        alphas_action, betas_action, alphas_out, betas_out = {}, {}, {}, {}
 
-        predictions = torch.empty(B, self.out_dims, self.iterations, device=device)
-        certainties = torch.empty(B, 2, self.iterations, device=device)
+        predictions = torch.empty(B, self.out_dims, self.iterations, device=device) #
+        certainties = torch.empty(B, 2, self.iterations, device=device) #
 
         for stepi in range(self.iterations):
-            # 1. Action Sync (Causal context for Attention)
-            sync_action = self.compute_lagged_sync(
-                activated_state, activation_history, 
-                self.decay_params_action, alphas_action, betas_action, 'action'
-            )
+            sync_action = self.compute_lagged_sync(activated_state, activation_history, 
+                                                   self.decay_params_action, alphas_action, betas_action, 'action')
 
-            # 2. Attention Interaction
-            q = self.q_proj(sync_action).unsqueeze(1)
-            attn_out, attn_weights = self.attention(q, kv, kv, average_attn_weights=False)
+            q = self.q_proj(sync_action).unsqueeze(1) #
+            attn_out, attn_weights = self.attention(q, kv, kv, average_attn_weights=False) #
             attn_out = attn_out.squeeze(1)
             
-            # 3. Recurrence & NLMs
-            pre_synapse_input = torch.cat((attn_out, activated_state), dim=-1)
-            state = self.synapses(pre_synapse_input)
-            state_trace = torch.cat((state_trace[:, :, 1:], state.unsqueeze(-1)), dim=-1)
-            activated_state = self.trace_processor(state_trace)
+            pre_synapse_input = torch.cat((attn_out, activated_state), dim=-1) #
+            state = self.synapses(pre_synapse_input) #
+            state_trace = torch.cat((state_trace[:, :, 1:], state.unsqueeze(-1)), dim=-1) #
+            activated_state = self.trace_processor(state_trace) #
             
-            activation_history.append(activated_state)
+            activation_history.append(activated_state) #
             if len(activation_history) > max(self.lags) + 1:
                 activation_history.pop(0)
 
-            # 4. Output Sync
-            sync_out = self.compute_lagged_sync(
-                activated_state, activation_history,
-                self.decay_params_out, alphas_out, betas_out, 'out'
-            )
+            sync_out = self.compute_lagged_sync(activated_state, activation_history,
+                                                self.decay_params_out, alphas_out, betas_out, 'out')
 
-            # 5. Readout
-            current_pred = self.output_projector(sync_out)
+            current_pred = self.output_projector(sync_out) #
             predictions[..., stepi] = current_pred
             certainties[..., stepi] = self.compute_certainty(current_pred)
 
@@ -123,6 +124,6 @@ class LaggedContinuousThoughtMachine(ContinuousThoughtMachine):
                     (np.array(synch_out_tracking), np.array(synch_action_tracking)), 
                     np.array(pre_activations_tracking), 
                     np.array(post_activations_tracking), 
-                    np.array(attention_tracking))
+                    np.array(attention_tracking)) #
         
-        return predictions, certainties, sync_out
+        return predictions, certainties, sync_out #
