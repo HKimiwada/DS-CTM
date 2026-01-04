@@ -24,8 +24,6 @@ from models.ctm import ContinuousThoughtMachine
 from models.lagged_ctm import LaggedContinuousThoughtMachine
 from utils.losses import parity_loss
 from utils.schedulers import WarmupCosineAnnealingLR
-from utils.housekeeping import set_seed
-
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Validation Training for CTM Comparison")
@@ -78,6 +76,16 @@ def parse_args():
     parser.add_argument('--checkpoint_dir', type=str, default='checkpoints/validation')
     
     return parser.parse_args()
+
+def set_seed_local(seed: int):
+    import random
+    import numpy as np
+    import torch
+
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
 
 
 def build_model(args, device):
@@ -204,7 +212,7 @@ def get_lag_statistics(model, args):
 
 def train():
     args = parse_args()
-    set_seed(args.seed)
+    set_seed_local(args.seed)
     
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
