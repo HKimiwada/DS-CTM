@@ -69,7 +69,6 @@ def parse_args():
     # Logging
     parser.add_argument('--log_every', type=int, default=100)
     parser.add_argument('--eval_every', type=int, default=1000)
-    parser.add_argument('--save_every', type=int, default=10000)
     parser.add_argument('--n_eval_batches', type=int, default=40)
     
     # Checkpointing
@@ -372,17 +371,6 @@ def train():
                 wandb.run.summary['best_test_accuracy'] = best_test_acc
                 wandb.run.summary['best_step'] = step
         
-        # Periodic checkpoint
-        if step % args.save_every == 0 and step > 0:
-            torch.save({
-                'step': step,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'scheduler_state_dict': scheduler.state_dict(),
-                'training_history': training_history,
-                'args': vars(args),
-            }, os.path.join(save_dir, f'checkpoint_{step}.pt'))
-    
     # Final evaluation (full test set)
     print("\nRunning final evaluation on full test set...")
     final_test_metrics = evaluate(model, testloader, device, args, n_batches=None)
