@@ -6,6 +6,7 @@ from utils.sync_metrics import compute_lagged_pairwise_product, update_recursive
 
 class LaggedContinuousThoughtMachine(ContinuousThoughtMachine):
     def __init__(self, *args, lags=[0, 1, 2, 4], **kwargs):
+        # Defines which temporal offsets to compute synchrony for
         self.lags = sorted(lags)
         # super().__init__ will now use our overridden calculate_synch_representation_size
         super().__init__(*args, **kwargs)
@@ -25,15 +26,22 @@ class LaggedContinuousThoughtMachine(ContinuousThoughtMachine):
         Returns n_synch * n_synch (Full matrix) instead of base CTM's n_synch*(n_synch+1)//2.
         """
         if self.neuron_select_type == 'random-pairing':
-            return n_synch
+            return n_synch # 一対一対のランダムペアリングなので元と同じ
         elif self.neuron_select_type in ('first-last', 'random'):
+            # All-to-all neuron pairing
             # Lagged synchrony is asymmetric; we need the full directional matrix
+            """
+            vs. baseline ctm.py:
+                i, j = torch.triu_indices(n_synch, n_synch)
+                pairwise_product = outer[:, i, j]
+            """
             return n_synch * n_synch
         else:
             raise ValueError(f"Invalid neuron selection type: {self.neuron_select_type}")
 
     def _setup_lagged_parameters(self):
-        """Register separate decay parameters for each temporal offset."""
+        """Register separate decay parameters for each temporal offset -> Purpose: controls how quickly the recursive synchrony memory decays for each lag"""
+        # Initalize decay parameters for each lag and store in ParameterDicts
         # Now uses the correctly computed (larger) representation size
         if self.synch_representation_size_action > 0:
             self.decay_params_action = nn.ParameterDict({
@@ -47,21 +55,40 @@ class LaggedContinuousThoughtMachine(ContinuousThoughtMachine):
         })
 
     def compute_lagged_sync(self, current_z, history, decay_dict, alpha_dict, beta_dict, synch_type):
+        """
+        - current_z: Current neuron activations z(t), shape (batch_size, n_neurons).
+        - history: List of past activations [z(t-k), z(t-k+1), ..., z(t-1), z(t)].
+        - decay_dict: Either self.decay_params_action or self.decay_params_out.
+        - alpha_dict, beta_dict: Dictionaries storing recursive state for each lag.
+        - synch_type: Either 'action' or 'out'.
+        """
         indices_left = getattr(self, f'{synch_type}_neuron_indices_left')
         indices_right = getattr(self, f'{synch_type}_neuron_indices_right')
         
         all_syncs = []
+        # Loop through each temporal offset (max(0, ...), clamps to 0 if we don't have enough history)
         for lag in self.lags:
             hist_idx = max(0, len(history) - 1 - lag)
             delayed_z = history[hist_idx]
             
             # prod is now correctly N*N (1024)
+            # Computes z_i(t) * z_j(t-lag) for selected neuron pairs.
             prod = compute_lagged_pairwise_product(
                 current_z, delayed_z, indices_left, indices_right, self.neuron_select_type
             )
             
             # r is now correctly N*N (1024)
             r = torch.exp(-torch.clamp(decay_dict[f"lag_{lag}"], 0, 15)).unsqueeze(0)
+
+            """
+            Instead of storing all products from t=0 to t=1000, we just store two numbers (α and β). The update only requires:
+                The previous α, β (2 numbers)
+                The current product (1 number)
+                The decay rate r (1 number)
+                Memory: O(1) - constant!
+                Computation: O(1) - just multiply and add!
+            Produt Captures features that get fed into downstream (uses recursive update to store this in two variables)
+            """
             sync, a, b = update_recursive_sync(
                 prod, alpha_dict.get(lag), beta_dict.get(lag), r
             )
@@ -75,29 +102,47 @@ class LaggedContinuousThoughtMachine(ContinuousThoughtMachine):
         B = x.size(0)
         device = x.device
 
-        pre_activations_tracking, post_activations_tracking = [], [] #
+        pre_activations_tracking, post_activations_tracking = [], [] # Lists to collect tracking data across iterations.
         synch_out_tracking, synch_action_tracking, attention_tracking = [], [], []
 
-        kv = self.compute_features(x) #
-        state_trace = self.start_trace.unsqueeze(0).expand(B, -1, -1) #
-        activated_state = self.start_activated_state.unsqueeze(0).expand(B, -1) #
+        kv = self.compute_features(x) # Compute the key-value features from the input data using the backbone. (from original CTM)
+        state_trace = self.start_trace.unsqueeze(0).expand(B, -1, -1) # Initial neuron state.
+        activated_state = self.start_activated_state.unsqueeze(0).expand(B, -1) 
         
-        activation_history = [activated_state] #
-        alphas_action, betas_action, alphas_out, betas_out = {}, {}, {}, {}
+        activation_history = [activated_state] # history of activated states for lagged synchrony computation.
+        alphas_action, betas_action, alphas_out, betas_out = {}, {}, {}, {} # empty dict to hold recursive states
 
         predictions = torch.empty(B, self.out_dims, self.iterations, device=device) #
         certainties = torch.empty(B, 2, self.iterations, device=device) #
 
         for stepi in range(self.iterations):
+            # Compute lagged synchrony for action pathway (updates internal state)
+            """
+            - Takes current neuron activations (activated_state)
+            - Compares them with past activations at different lags
+            - Produces a multi-timescale synchrony vector
+
+            - Uses:
+                - what to attend in the input?
+            """
             sync_action = self.compute_lagged_sync(activated_state, activation_history, 
                                                    self.decay_params_action, alphas_action, betas_action, 'action')
 
-            q = self.q_proj(sync_action).unsqueeze(1) #
+            """
+            Standard multi-head attention: Q·K^T to get attention weights, then weighted sum of V
+            But the query comes from synchrony! This is the key innovation
+
+            Intuition:
+                The network's internal dynamics (synchrony) guide what it "looks at" in the input
+                Different synchrony patterns → different attention foci
+                Multi-timescale synchrony → can attend based on different temporal contexts
+            """
+            q = self.q_proj(sync_action).unsqueeze(1) 
             attn_out, attn_weights = self.attention(q, kv, kv, average_attn_weights=False) #
             attn_out = attn_out.squeeze(1)
             
             pre_synapse_input = torch.cat((attn_out, activated_state), dim=-1) #
-            state = self.synapses(pre_synapse_input) #
+            state = self.synapses(pre_synapse_input) # pass modified input to MLP to compute new neuron state
             state_trace = torch.cat((state_trace[:, :, 1:], state.unsqueeze(-1)), dim=-1) #
             activated_state = self.trace_processor(state_trace) #
             
@@ -105,6 +150,7 @@ class LaggedContinuousThoughtMachine(ContinuousThoughtMachine):
             if len(activation_history) > max(self.lags) + 1:
                 activation_history.pop(0)
 
+            # Compute lagged synchrony for output pathway (output prediction)
             sync_out = self.compute_lagged_sync(activated_state, activation_history,
                                                 self.decay_params_out, alphas_out, betas_out, 'out')
 
